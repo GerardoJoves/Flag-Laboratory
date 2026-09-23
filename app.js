@@ -1,9 +1,9 @@
 document.body.innerHTML = `
   <style>
-    @font-face {
-      font-family: 'Catrinity';
-      src: local('Catrinity'), local('Catrinity Flags');
-    }
+@font-face {
+  font-family: 'Catrinity';
+  src: url('./CatrinityFlags.otf') format('opentype');
+}
     body {
       font-family: system-ui, sans-serif;
       padding: 40px;
