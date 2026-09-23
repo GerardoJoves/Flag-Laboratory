@@ -66,14 +66,14 @@ document.body.innerHTML = `
     }
   </style>
   <div class="container">
-    <h2>Catrinity Fixed-Center Flag Parser</h2>
+    <h2>Catrinity Layering & Transform Flag Parser</h2>
     <div class="hint">
-      • <b>Spaces in code input:</b> Token separator only (0px gap between rendered flags)<br>
-      • <b>Literal Space:</b> <code>#0020</code> or <code>0020</code><br>
-      • <b>Rotation Commands:</b> <code>!r90</code>, <code>!r180</code>, <code>!r270</code><br>
-      • <b>Flip Commands:</b> <code>!fh</code>, <code>!fv</code>, <code>!reset</code>
+      • <b>Spaces in code input:</b> Token separator (0px gap between base flags)<br>
+      • <b>Layer Command:</b> <code>!layer</code> (stacks next token on top of current flag)<br>
+      • <b>Scale Commands:</b> <code>!s25</code>, <code>!s50</code>, <code>!s75</code>, <code>!s150</code>, <code>!s200</code><br>
+      • <b>Rotation/Flip:</b> <code>!r90</code>, <code>!r180</code>, <code>!r270</code>, <code>!fh</code>, <code>!fv</code>, <code>!reset</code>
     </div>
-    <input type="text" id="code" placeholder="Try YU !r90 CS or YU #0020 CS" value="YU !r90 CS" autofocus>
+    <input type="text" id="code" placeholder="e.g., YU !layer !s50 !r90 CS" value="YU !layer !s50 CS" autofocus>
     <div class="flag-display" id="output"></div>
   </div>
 `;
@@ -120,22 +120,45 @@ function updateFlag() {
 
   const tokens = inputVal.split(/\s+/);
   
-  let currentRotation = 0;
+  let currentWrapper = null;
+  let isLayering = false;
+
+  // Transform state tracker for active element
+  let rotation = 0;
+  let scale = 1.0;
   let flipH = false;
   let flipV = false;
+
+  function resetTransforms() {
+    rotation = 0;
+    scale = 1.0;
+    flipH = false;
+    flipV = false;
+  }
 
   for (const token of tokens) {
     if (token.startsWith('!')) {
       const cmd = token.toLowerCase();
-      if (cmd === '!r90') currentRotation = (currentRotation + 90) % 360;
-      else if (cmd === '!r180') currentRotation = (currentRotation + 180) % 360;
-      else if (cmd === '!r270') currentRotation = (currentRotation + 270) % 360;
-      else if (cmd === '!fh') flipH = !flipH;
-      else if (cmd === '!fv') flipV = !flipV;
-      else if (cmd === '!reset') {
-        currentRotation = 0;
-        flipH = false;
-        flipV = false;
+
+      if (cmd === '!layer' || cmd === '!stack') {
+        isLayering = true;
+        resetTransforms(); // Fresh transform state for the incoming layer
+      } else if (cmd === '!r90') {
+        rotation = (rotation + 90) % 360;
+      } else if (cmd === '!r180') {
+        rotation = (rotation + 180) % 360;
+      } else if (cmd === '!r270') {
+        rotation = (rotation + 270) % 360;
+      } else if (cmd === '!fh') {
+        flipH = !flipH;
+      } else if (cmd === '!fv') {
+        flipV = !flipV;
+      } else if (cmd.startsWith('!s')) {
+        const percent = parseFloat(cmd.slice(2));
+        if (!isNaN(percent)) scale = percent / 100;
+      } else if (cmd === '!reset') {
+        resetTransforms();
+        isLayering = false;
       }
       continue;
     }
@@ -143,23 +166,33 @@ function updateFlag() {
     const textContent = processTokenToText(token);
     if (!textContent) continue;
 
-    const wrapper = document.createElement('span');
-    wrapper.className = 'flag-wrapper';
+    // Create container if starting a new base flag token
+    if (!isLayering || !currentWrapper) {
+      currentWrapper = document.createElement('span');
+      currentWrapper.className = 'flag-wrapper';
+      outputEl.appendChild(currentWrapper);
+    }
 
+    // Create layer node inside current wrapper
     const span = document.createElement('span');
     span.className = 'flag-node';
     span.textContent = textContent;
 
+    // Assemble dynamic transform stack
     const transforms = [];
-    if (currentRotation !== 0) transforms.push(`rotate(${currentRotation}deg)`);
+    if (rotation !== 0) transforms.push(`rotate(${rotation}deg)`);
+    if (scale !== 1.0) transforms.push(`scale(${scale})`);
     if (flipH || flipV) transforms.push(`scale(${flipH ? -1 : 1}, ${flipV ? -1 : 1})`);
 
     if (transforms.length > 0) {
       span.style.transform = transforms.join(' ');
     }
 
-    wrapper.appendChild(span);
-    outputEl.appendChild(wrapper);
+    currentWrapper.appendChild(span);
+
+    // Reset state after rendering token layer
+    resetTransforms();
+    isLayering = false;
   }
 }
 
